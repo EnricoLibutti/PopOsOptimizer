@@ -32,3 +32,5 @@
 [2025-06-27 00:37:37] SUCCESS: services_optimization.sh completed
 [2025-06-27 00:37:37] Executing: dev_monitoring_compact.sh - Setup Monitoraggio
 [2025-06-27 00:37:37] SUCCESS: dev_monitoring_compact.sh completed
+[2025-06-27 11:21:53] Executing: dev_dual_boot_fix.sh - Fix Dual Boot Windows BCD
+[2025-06-27 11:21:56] SUCCESS: dev_dual_boot_fix.sh completed
