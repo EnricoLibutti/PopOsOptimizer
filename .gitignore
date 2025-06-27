@@ -69,4 +69,7 @@ sysctl.backup
 # Personal configuration
 config.local
 .env
-.env.local 
+.env.local
+
+# Claude documentation (for AI assistant)
+claude.md 

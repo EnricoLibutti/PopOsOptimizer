@@ -19,6 +19,8 @@ import shutil
 import argparse
 import threading
 from collections import deque
+import re
+
 
 # Rich imports for modern UI
 from rich.console import Console
@@ -39,12 +41,12 @@ from rich.theme import Theme
 # Custom theme for professional look
 custom_theme = Theme({
     "info": "cyan",
-    "warning": "yellow",
+    "warning": "yellow", 
     "error": "bold red",
     "success": "bold green",
     "highlight": "magenta",
-    "accent": "bright_blue",
-    "muted": "dim white"
+    "cyan": "bright_blue",
+    "dim": "bright_black"
 })
 
 console = Console(theme=custom_theme)
@@ -191,6 +193,8 @@ class PopOsDashboard:
         self.running = True
         self.refresh_rate = 2  # seconds
         
+
+    
     def run_command(self, command: List[str], check: bool = True, capture_output: bool = True) -> subprocess.CompletedProcess:
         """Run command with error handling"""
         try:
@@ -256,7 +260,7 @@ class PopOsDashboard:
         
         # Create main table
         table = Table(show_header=False, box=box.ROUNDED, padding=(0, 1))
-        table.add_column("Metric", style="accent", min_width=15)
+        table.add_column("Metric", style="cyan", min_width=15)
         table.add_column("Value", style="white", min_width=20)
         table.add_column("Status", style="white", min_width=15)
         
@@ -348,9 +352,9 @@ class PopOsDashboard:
         
         return Panel(
             table,
-            title="[accent]📊 System Metrics[/accent]",
-            title_align="left",
-            border_style="accent"
+                    title="[cyan]📊 System Metrics[/cyan]",
+        title_align="left",
+        border_style="cyan"
         )
     
     def create_progress_bar(self, value: float, max_value: float, width: int = 10) -> str:
@@ -374,9 +378,9 @@ class PopOsDashboard:
         status = self.optimization_status
         
         table = Table(show_header=False, box=box.ROUNDED, padding=(0, 1))
-        table.add_column("Feature", style="accent", min_width=18)
+        table.add_column("Feature", style="cyan", min_width=18)
         table.add_column("Status", style="white", min_width=15)
-        table.add_column("Details", style="muted", min_width=20)
+        table.add_column("Details", style="dim", min_width=20)
         
         # CPU Optimizations
         boost_status = "[success]✅ Enabled[/success]" if status.cpu_boost else "[error]❌ Disabled[/error]"
@@ -399,53 +403,67 @@ class PopOsDashboard:
         
         return Panel(
             table,
-            title="[accent]⚙️ Optimization Status[/accent]",
-            title_align="left",
-            border_style="accent"
+                    title="[cyan]⚙️ Optimization Status[/cyan]",
+        title_align="left", 
+        border_style="cyan"
         )
     
     def create_top_processes_panel(self) -> Panel:
         """Create top processes panel"""
         table = Table(show_header=True, box=box.ROUNDED, padding=(0, 1))
-        table.add_column("PID", style="muted", width=8)
+        table.add_column("PID", style="dim", width=8)
         table.add_column("Process", style="white", width=20)
         table.add_column("CPU%", style="yellow", width=8)
         table.add_column("Memory%", style="cyan", width=8)
-        table.add_column("Status", style="muted", width=10)
+        table.add_column("Status", style="dim", width=10)
         
-        processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'status']):
-            try:
-                info = proc.info
-                if info['cpu_percent'] is not None and info['cpu_percent'] > 0:
-                    processes.append(info)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        
-        # Sort by CPU usage
-        processes.sort(key=lambda x: x['cpu_percent'] or 0, reverse=True)
-        
-        for proc in processes[:8]:  # Top 8 processes
-            name = proc['name'][:18] + "..." if len(proc['name']) > 18 else proc['name']
-            cpu_pct = proc['cpu_percent'] or 0
-            mem_pct = proc['memory_percent'] or 0
+        try:
+            processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'status']):
+                try:
+                    info = proc.info
+                    if info and info.get('cpu_percent') is not None and info.get('cpu_percent', 0) > 0:
+                        processes.append(info)
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
             
-            cpu_color = "error" if cpu_pct > 50 else "warning" if cpu_pct > 20 else "success"
-            mem_color = "error" if mem_pct > 10 else "warning" if mem_pct > 5 else "success"
+            # Sort by CPU usage
+            processes.sort(key=lambda x: x.get('cpu_percent', 0) or 0, reverse=True)
             
-            table.add_row(
-                str(proc['pid']),
-                name,
-                f"[{cpu_color}]{cpu_pct:.1f}[/{cpu_color}]",
-                f"[{mem_color}]{mem_pct:.1f}[/{mem_color}]",
-                proc['status'] or "unknown"
-            )
+            # Add processes to table (limit to top 8)
+            for proc in processes[:8]:
+                try:
+                    name = proc.get('name', 'Unknown')[:18] + "..." if len(proc.get('name', '')) > 18 else proc.get('name', 'Unknown')
+                    cpu_pct = proc.get('cpu_percent', 0) or 0
+                    mem_pct = proc.get('memory_percent', 0) or 0
+                    
+                    cpu_color = "error" if cpu_pct > 50 else "warning" if cpu_pct > 20 else "success"
+                    mem_color = "error" if mem_pct > 10 else "warning" if mem_pct > 5 else "success"
+                    
+                    table.add_row(
+                        str(proc.get('pid', 'N/A')),
+                        name,
+                        f"[{cpu_color}]{cpu_pct:.1f}[/{cpu_color}]",
+                        f"[{mem_color}]{mem_pct:.1f}[/{mem_color}]",
+                        proc.get('status', 'unknown')
+                    )
+                except Exception:
+                    # Skip problematic processes
+                    continue
+                    
+            # If no processes found, add a default row
+            if len(processes) == 0:
+                table.add_row("N/A", "No active processes", "0.0", "0.0", "idle")
+                
+        except Exception as e:
+            # Fallback in case of major error
+            table.add_row("ERROR", f"Process error: {str(e)[:15]}...", "0.0", "0.0", "error")
         
         return Panel(
             table,
-            title="[accent]🔍 Top Processes[/accent]",
+            title="[cyan]🔍 Top Processes[/cyan]",
             title_align="left",
-            border_style="accent"
+            border_style="cyan"
         )
     
     @property
@@ -457,30 +475,34 @@ class PopOsDashboard:
         """Create the main dashboard layout"""
         layout = Layout()
         
+        # Create main split
         layout.split_column(
             Layout(name="header", size=3),
             Layout(name="main"),
             Layout(name="footer", size=3)
         )
         
+        # Split main into left and right
         layout["main"].split_row(
             Layout(name="left", ratio=2),
             Layout(name="right", ratio=1)
         )
         
+        # Split left into metrics and optimization
         layout["left"].split_column(
             Layout(name="metrics"),
             Layout(name="optimization")
         )
         
-        layout["right"].update(Layout(name="processes"))
+        # Set the right side as processes
+        layout["right"].name = "processes"
         
         return layout
     
     def create_header(self) -> Panel:
         """Create dashboard header"""
-        title = Text("🚀 Pop-OS Optimizer Dashboard", style="bold accent")
-        subtitle = Text("Professional System Optimization Suite", style="muted")
+        title = Text("🚀 Pop-OS Optimizer Dashboard", style="bold cyan")
+        subtitle = Text("Professional System Optimization Suite", style="dim")
         
         content = Align.center(
             Text.assemble(title, "\n", subtitle)
@@ -488,51 +510,67 @@ class PopOsDashboard:
         
         return Panel(
             content,
-            style="accent",
+            style="cyan",
             box=box.HEAVY
         )
     
     def create_footer(self) -> Panel:
         """Create dashboard footer with controls"""
         controls = [
-            "[bold cyan]Q[/bold cyan] Quit",
-            "[bold green]O[/bold green] Optimize",
-            "[bold yellow]B[/bold yellow] Backup",
-            "[bold magenta]M[/bold magenta] Menu",
-            "[bold blue]R[/bold blue] Refresh"
+            "[bold cyan]Ctrl+C[/bold cyan] Quit",
+            "[bold dim]Updates every 2 seconds[/bold dim]"
         ]
         
         content = Align.center(" │ ".join(controls))
         
         return Panel(
             content,
-            style="muted",
+            style="dim",
             box=box.SIMPLE
         )
     
     def run_live_dashboard(self):
         """Run the live dashboard"""
-        layout = self.create_dashboard_layout()
-        
-        # Set static elements
-        layout["header"].update(self.create_header())
-        layout["footer"].update(self.create_footer())
-        
-        with Live(layout, refresh_per_second=1, screen=True) as live:
-            while self.running:
-                try:
-                    # Update dynamic panels
-                    layout["metrics"].update(self.create_system_metrics_panel())
-                    layout["optimization"].update(self.create_optimization_status_panel())
-                    layout["processes"].update(self.create_top_processes_panel())
-                    
-                    # Simple key detection (would need proper async handling in production)
-                    time.sleep(self.refresh_rate)
-                    
-                except KeyboardInterrupt:
-                    break
-                except Exception as e:
-                    logger.error(f"Dashboard error: {e}")
+        try:
+            layout = self.create_dashboard_layout()
+            
+            # Set static elements
+            layout["header"].update(self.create_header())
+            layout["footer"].update(self.create_footer())
+            
+            # Initial update of dynamic panels
+            self.monitor.update_metrics()
+            self.check_optimization_status()
+            layout["metrics"].update(self.create_system_metrics_panel())
+            layout["optimization"].update(self.create_optimization_status_panel())
+            layout["processes"].update(self.create_top_processes_panel())
+            
+            with Live(layout, refresh_per_second=1, screen=True) as live:
+                while self.running:
+                    try:
+                        # Update metrics first
+                        self.monitor.update_metrics()
+                        self.check_optimization_status()
+                        
+                        # Update dynamic panels
+                        layout["metrics"].update(self.create_system_metrics_panel())
+                        layout["optimization"].update(self.create_optimization_status_panel())
+                        layout["processes"].update(self.create_top_processes_panel())
+                        
+                        # Sleep for refresh rate
+                        time.sleep(self.refresh_rate)
+                        
+                    except KeyboardInterrupt:
+                        self.running = False
+                        break
+                    except Exception as e:
+                        logger.error(f"Dashboard update error: {e}")
+                        # Continue running even with errors
+                        time.sleep(self.refresh_rate)
+        except Exception as e:
+            logger.error(f"Dashboard initialization error: {e}")
+            console.print(f"[error]❌ Dashboard error: {e}[/error]")
+            console.print("[warning]Try using --status or menu mode instead[/warning]")
     
     def create_backup_with_progress(self) -> Path:
         """Create backup with progress indication"""
@@ -577,37 +615,72 @@ class PopOsDashboard:
     
     def optimize_cpu_with_progress(self) -> bool:
         """Optimize CPU with progress indication"""
-        with Status("Optimizing CPU settings...", spinner="dots", console=console):
-            time.sleep(1)  # Simulation delay
-            try:
-                # Enable CPU boost if available
-                boost_path = Path("/sys/devices/system/cpu/cpufreq/boost")
-                if boost_path.exists():
-                    try:
-                        self.run_command(["sudo", "sh", "-c", "echo 1 > /sys/devices/system/cpu/cpufreq/boost"])
+        console.print("[info]🔐 This operation requires sudo privileges.[/info]")
+        console.print("[dim]You may be prompted for your password...[/dim]")
+        
+        try:
+            # Enable CPU boost if available
+            boost_path = Path("/sys/devices/system/cpu/cpufreq/boost")
+            if boost_path.exists():
+                try:
+                    # Use a simpler approach without subprocess timeout issues
+                    console.print("[info]Setting CPU boost...[/info]")
+                    result = subprocess.run(
+                        ["sudo", "tee", str(boost_path)], 
+                        input="1\n", 
+                        text=True, 
+                        capture_output=True, 
+                        timeout=10
+                    )
+                    if result.returncode == 0:
                         console.print("[success]✅ CPU boost enabled[/success]")
-                    except:
-                        console.print("[warning]⚠️ CPU boost not supported[/warning]")
-                
-                # Set performance governor
-                gov_files = list(Path("/sys/devices/system/cpu").glob("cpu*/cpufreq/scaling_governor"))
-                success_count = 0
-                for gov_file in gov_files:
-                    try:
-                        self.run_command(["sudo", "sh", "-c", f"echo performance > {gov_file}"])
+                    else:
+                        console.print("[warning]⚠️ CPU boost could not be enabled[/warning]")
+                except subprocess.TimeoutExpired:
+                    console.print("[warning]⚠️ CPU boost operation timed out[/warning]")
+                except Exception:
+                    console.print("[warning]⚠️ CPU boost not supported[/warning]")
+            
+            # Set performance governor
+            console.print("[info]Setting CPU governor to performance...[/info]")
+            gov_files = list(Path("/sys/devices/system/cpu").glob("cpu*/cpufreq/scaling_governor"))
+            success_count = 0
+            
+            for gov_file in gov_files[:4]:  # Limit to first 4 cores to avoid too many prompts
+                try:
+                    result = subprocess.run(
+                        ["sudo", "tee", str(gov_file)], 
+                        input="performance\n", 
+                        text=True, 
+                        capture_output=True, 
+                        timeout=10
+                    )
+                    if result.returncode == 0:
                         success_count += 1
-                    except:
-                        pass
-                
-                console.print(f"[success]✅ Performance governor set for {success_count}/{len(gov_files)} cores[/success]")
-                return True
-                
-            except Exception as e:
-                console.print(f"[error]❌ CPU optimization failed: {e}[/error]")
-                return False
+                except subprocess.TimeoutExpired:
+                    console.print(f"[warning]⚠️ Timeout setting governor for {gov_file.name}[/warning]")
+                    break
+                except Exception:
+                    pass
+            
+            if success_count > 0:
+                console.print(f"[success]✅ Performance governor set for {success_count} cores[/success]")
+                console.print("[info]Note: Some cores may require manual configuration[/info]")
+            else:
+                console.print("[warning]⚠️ Could not set performance governor[/warning]")
+                console.print("[info]Try using the bash script for full optimization[/info]")
+            
+            return success_count > 0
+            
+        except Exception as e:
+            console.print(f"[error]❌ CPU optimization failed: {e}[/error]")
+            return False
     
     def optimize_memory_with_progress(self) -> bool:
         """Optimize memory with progress indication"""
+        console.print("[info]🔐 This operation requires sudo privileges.[/info]")
+        console.print("[dim]You may be prompted for your password...[/dim]")
+        
         sysctl_settings = [
             "vm.swappiness=10",
             "vm.vfs_cache_pressure=50",
@@ -616,28 +689,184 @@ class PopOsDashboard:
             "vm.page-cluster=0"
         ]
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=console
-        ) as progress:
-            
-            task = progress.add_task("Optimizing memory...", total=len(sysctl_settings))
-            
-            for setting in sysctl_settings:
-                progress.update(task, description=f"Applying {setting}")
-                try:
-                    self.run_command(["sudo", "sysctl", "-w", setting])
-                    console.print(f"[success]✅ Applied: {setting}[/success]")
-                except Exception as e:
-                    console.print(f"[warning]⚠️ Failed to apply {setting}: {e}[/warning]")
-                
-                progress.advance(task)
-                time.sleep(0.1)
+        success_count = 0
         
-        return True
+        for setting in sysctl_settings:
+            console.print(f"[info]Applying {setting}...[/info]")
+            try:
+                result = subprocess.run(
+                    ["sudo", "sysctl", "-w", setting], 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    console.print(f"[success]✅ Applied: {setting}[/success]")
+                    success_count += 1
+                else:
+                    console.print(f"[warning]⚠️ Failed to apply {setting}: {result.stderr}[/warning]")
+            except subprocess.TimeoutExpired:
+                console.print(f"[warning]⚠️ Timeout applying {setting}[/warning]")
+                break
+            except Exception as e:
+                console.print(f"[warning]⚠️ Failed to apply {setting}: {e}[/warning]")
+        
+        if success_count > 0:
+            console.print(f"[success]✅ Applied {success_count}/{len(sysctl_settings)} memory optimizations[/success]")
+        else:
+            console.print("[warning]⚠️ No memory optimizations could be applied[/warning]")
+        
+        return success_count > 0
+    
+    def optimize_ssd_with_progress(self) -> bool:
+        """Optimize SSD with progress indication"""
+        console.print("[info]🔐 This operation requires sudo privileges.[/info]")
+        console.print("[dim]Optimizing SSD performance and longevity...[/dim]")
+        
+        success_count = 0
+        
+        try:
+            # Enable TRIM
+            console.print("[info]Enabling automatic TRIM...[/info]")
+            result = subprocess.run(
+                ["sudo", "systemctl", "enable", "fstrim.timer"], 
+                capture_output=True, 
+                text=True, 
+                timeout=10
+            )
+            if result.returncode == 0:
+                console.print("[success]✅ Automatic TRIM enabled[/success]")
+                success_count += 1
+            else:
+                console.print("[warning]⚠️ Could not enable TRIM[/warning]")
+            
+            # Set I/O scheduler for NVMe drives
+            console.print("[info]Setting I/O scheduler for NVMe drives...[/info]")
+            nvme_drives = list(Path("/sys/block").glob("nvme*"))
+            for drive in nvme_drives:
+                try:
+                    scheduler_path = drive / "queue" / "scheduler"
+                    if scheduler_path.exists():
+                        result = subprocess.run(
+                            ["sudo", "tee", str(scheduler_path)], 
+                            input="mq-deadline\n", 
+                            text=True, 
+                            capture_output=True, 
+                            timeout=5
+                        )
+                        if result.returncode == 0:
+                            console.print(f"[success]✅ Set mq-deadline scheduler for {drive.name}[/success]")
+                            success_count += 1
+                except Exception:
+                    pass
+            
+            console.print(f"[success]✅ SSD optimization completed ({success_count} operations)[/success]")
+            return success_count > 0
+            
+        except Exception as e:
+            console.print(f"[error]❌ SSD optimization failed: {e}[/error]")
+            return False
+    
+    def optimize_desktop_with_progress(self) -> bool:
+        """Optimize desktop with progress indication"""
+        console.print("[info]Optimizing desktop environment...[/info]")
+        
+        success_count = 0
+        
+        try:
+            # Disable animations
+            console.print("[info]Disabling desktop animations...[/info]")
+            result = subprocess.run(
+                ["gsettings", "set", "org.gnome.desktop.interface", "enable-animations", "false"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            if result.returncode == 0:
+                console.print("[success]✅ Desktop animations disabled[/success]")
+                success_count += 1
+            
+            # Set number of workspaces
+            console.print("[info]Setting workspace configuration...[/info]")
+            result = subprocess.run(
+                ["gsettings", "set", "org.gnome.mutter", "dynamic-workspaces", "false"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            if result.returncode == 0:
+                result = subprocess.run(
+                    ["gsettings", "set", "org.gnome.desktop.wm.preferences", "num-workspaces", "6"], 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    console.print("[success]✅ Workspace configuration optimized[/success]")
+                    success_count += 1
+            
+            console.print(f"[success]✅ Desktop optimization completed ({success_count} operations)[/success]")
+            return success_count > 0
+            
+        except Exception as e:
+            console.print(f"[error]❌ Desktop optimization failed: {e}[/error]")
+            return False
+    
+    def optimize_services_with_progress(self) -> bool:
+        """Optimize services with progress indication"""
+        console.print("[info]🔐 This operation requires sudo privileges.[/info]")
+        console.print("[dim]Disabling unnecessary services...[/dim]")
+        
+        services_to_disable = [
+            "cups-browsed.service",
+            "avahi-daemon.service"
+        ]
+        
+        success_count = 0
+        
+        for service in services_to_disable:
+            try:
+                console.print(f"[info]Disabling {service}...[/info]")
+                result = subprocess.run(
+                    ["sudo", "systemctl", "disable", service], 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    console.print(f"[success]✅ Disabled {service}[/success]")
+                    success_count += 1
+                else:
+                    console.print(f"[warning]⚠️ Could not disable {service}[/warning]")
+            except Exception:
+                console.print(f"[warning]⚠️ Error disabling {service}[/warning]")
+        
+        console.print(f"[success]✅ Services optimization completed ({success_count} services)[/success]")
+        return success_count > 0
+    
+    def run_script_with_progress(self, script_name: str, description: str) -> bool:
+        """Run a bash script with progress indication"""
+        console.print(f"[info]Running {description}...[/info]")
+        console.print("[dim]This will execute the corresponding bash script[/dim]")
+        
+        try:
+            result = subprocess.run(
+                ["bash", f"scripts/{script_name}"], 
+                cwd=Path.cwd(),
+                timeout=300  # 5 minutes timeout
+            )
+            if result.returncode == 0:
+                console.print(f"[success]✅ {description} completed successfully[/success]")
+                return True
+            else:
+                console.print(f"[warning]⚠️ {description} completed with warnings[/warning]")
+                return False
+        except subprocess.TimeoutExpired:
+            console.print(f"[error]❌ {description} timed out[/error]")
+            return False
+        except Exception as e:
+            console.print(f"[error]❌ {description} failed: {e}[/error]")
+            return False
     
     def interactive_menu(self):
         """Modern interactive menu"""
@@ -646,9 +875,9 @@ class PopOsDashboard:
             
             # Header
             console.print(Panel.fit(
-                "[bold accent]🚀 Pop-OS Optimizer Dashboard[/bold accent]\n"
-                "[muted]Professional System Optimization Suite[/muted]",
-                border_style="accent"
+                "[bold cyan]🚀 Pop-OS Optimizer Dashboard[/bold cyan]\n"
+                "[dim]Professional System Optimization Suite[/dim]",
+                border_style="cyan"
             ))
             
             # Quick status overview
@@ -660,7 +889,7 @@ class PopOsDashboard:
             
             # Create quick status table
             status_table = Table(show_header=False, box=None, padding=(0, 2))
-            status_table.add_column("", style="accent")
+            status_table.add_column("", style="cyan")
             status_table.add_column("", style="white")
             
             cpu_status = f"[success]{metrics.cpu_percent:.1f}%[/success]" if metrics.cpu_percent < 80 else f"[error]{metrics.cpu_percent:.1f}%[/error]"
@@ -671,30 +900,41 @@ class PopOsDashboard:
             status_table.add_row("⚡ Governor:", status.cpu_governor)
             status_table.add_row("⏰ Uptime:", metrics.uptime)
             
-            console.print(Panel(status_table, title="[accent]Quick Status[/accent]", title_align="left"))
+            console.print(Panel(status_table, title="[cyan]Quick Status[/cyan]", title_align="left"))
             
             # Menu options
-            console.print("\n[bold accent]📋 MENU OPTIONS:[/bold accent]")
+            console.print("\n[bold cyan]📋 MENU OPTIONS:[/bold cyan]")
             
             menu_options = [
                 ("1", "🔴 Live Dashboard", "Real-time system monitoring"),
                 ("2", "📁 Create Backup", "Backup system configurations"),
                 ("3", "🔥 Optimize CPU", "CPU boost and governor settings"),
                 ("4", "💾 Optimize Memory", "Memory and swap optimization"),
-                ("5", "⚡ Full Optimization", "Complete system optimization"),
-                ("6", "📊 Hardware Validation", "Check hardware compatibility"),
-                ("7", "🔍 System Information", "Detailed system information"),
+                ("5", "💿 Optimize SSD", "TRIM and I/O scheduler optimization"),
+                ("6", "🖥️ Optimize Desktop", "Animations and desktop settings"),
+                ("7", "⚙️ Optimize Services", "Disable unnecessary services"),
+                ("8", "🚀 Optimize Boot", "GRUB and boot time optimization"),
+                ("9", "📦 Install Software", "Install development tools"),
+                ("10", "📊 Setup Monitoring", "Install monitoring tools"),
+                ("11", "⚡ Full Optimization", "Complete system optimization"),
+                ("12", "🔍 Hardware Validation", "Check hardware compatibility"),
+                ("13", "📖 System Information", "Detailed system information"),
+                ("14", "⚙️ Configuration Presets", "Select optimization presets"),
+                ("15", "📚 View Documentation", "Show README and documentation"),
+                ("16", "🔄 Restore Backup", "Restore from previous backup"),
                 ("0", "👋 Exit", "Exit the application")
             ]
             
             for key, title, desc in menu_options:
-                console.print(f"  [{key}] [bold]{title}[/bold] - [muted]{desc}[/muted]")
+                console.print(f"  [{key}] [bold]{title}[/bold] - [dim]{desc}[/dim]")
             
             choice = Prompt.ask("\n[bold cyan]Select option[/bold cyan]", default="1")
             
             if choice == "1":
                 console.print("[info]Starting live dashboard... Press Ctrl+C to return[/info]")
+                time.sleep(1)
                 try:
+                    self.running = True  # Reset running state
                     self.run_live_dashboard()
                 except KeyboardInterrupt:
                     console.print("\n[info]Returning to menu...[/info]")
@@ -713,21 +953,80 @@ class PopOsDashboard:
                 Prompt.ask("\nPress Enter to continue")
                 
             elif choice == "5":
+                self.optimize_ssd_with_progress()
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "6":
+                self.optimize_desktop_with_progress()
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "7":
+                self.optimize_services_with_progress()
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "8":
+                self.run_script_with_progress("optimize_boot.sh", "Boot optimization")
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "9":
+                self.run_script_with_progress("install_software_stack.sh", "Software installation")
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "10":
+                self.run_script_with_progress("setup_monitoring.sh", "Monitoring tools setup")
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "11":
                 if Confirm.ask("[warning]Run full optimization? This will modify system settings[/warning]"):
                     console.print("[info]Running full optimization...[/info]")
                     self.create_backup_with_progress()
                     self.optimize_cpu_with_progress()
                     self.optimize_memory_with_progress()
+                    self.optimize_ssd_with_progress()
+                    self.optimize_desktop_with_progress()
+                    self.optimize_services_with_progress()
                     console.print("[success]✅ Full optimization completed![/success]")
                 Prompt.ask("\nPress Enter to continue")
                 
-            elif choice == "6":
+            elif choice == "12":
                 console.print("[info]Running hardware validation...[/info]")
                 subprocess.run(["bash", "scripts/hardware_validator.sh"])
                 Prompt.ask("\nPress Enter to continue")
                 
-            elif choice == "7":
+            elif choice == "13":
                 self.show_detailed_system_info()
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "14":
+                self.configuration_presets_menu()
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "15":
+                self.show_documentation()
+                Prompt.ask("\nPress Enter to continue")
+                
+            elif choice == "16":
+                console.print("[info]Available backups:[/info]")
+                try:
+                    backup_dir = Path("backups")
+                    if backup_dir.exists():
+                        backups = list(backup_dir.glob("backup_*.tar.gz"))
+                        if backups:
+                            for i, backup in enumerate(sorted(backups)[-5:], 1):  # Show last 5
+                                console.print(f"  [{i}] {backup.name}")
+                            
+                            backup_choice = Prompt.ask("\nSelect backup number to restore (or 0 to cancel)", default="0")
+                            if backup_choice != "0" and backup_choice.isdigit():
+                                idx = int(backup_choice) - 1
+                                if 0 <= idx < len(backups):
+                                    if Confirm.ask(f"[warning]Restore backup {backups[idx].name}?[/warning]"):
+                                        self.run_script_with_progress("backup_safety.sh", f"Restore backup {backups[idx].name}")
+                        else:
+                            console.print("[warning]No backups found[/warning]")
+                    else:
+                        console.print("[warning]Backup directory not found[/warning]")
+                except Exception as e:
+                    console.print(f"[error]❌ Error listing backups: {e}[/error]")
                 Prompt.ask("\nPress Enter to continue")
                 
             elif choice == "0":
@@ -744,7 +1043,7 @@ class PopOsDashboard:
         
         # System info
         info_table = Table(show_header=False, box=box.ROUNDED, padding=(0, 1))
-        info_table.add_column("Property", style="accent", min_width=20)
+        info_table.add_column("Property", style="cyan", min_width=20)
         info_table.add_column("Value", style="white")
         
         # CPU info
@@ -768,10 +1067,183 @@ class PopOsDashboard:
         # Disk info
         try:
             disk_info = self.run_command(["lsblk", "-d", "-o", "NAME,SIZE,MODEL"], capture_output=True)
-            console.print(Panel(info_table, title="[accent]💻 System Information[/accent]"))
-            console.print(Panel(disk_info.stdout, title="[accent]💿 Storage Devices[/accent]"))
+            console.print(Panel(info_table, title="[cyan]💻 System Information[/cyan]"))
+            console.print(Panel(disk_info.stdout, title="[cyan]💿 Storage Devices[/cyan]"))
         except:
-            console.print(Panel(info_table, title="[accent]💻 System Information[/accent]"))
+            console.print(Panel(info_table, title="[cyan]💻 System Information[/cyan]"))
+
+    def get_current_preset(self):
+        """Get current preset from config file"""
+        try:
+            config_path = Path("scripts/config.sh")
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith('PRESET='):
+                            preset = line.split('=')[1].strip().strip('"')
+                            return preset
+        except:
+            pass
+        return "unknown"
+
+    def set_preset(self, preset_name):
+        """Set preset in config file"""
+        try:
+            config_path = Path("scripts/config.sh")
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    content = f.read()
+                
+                # Replace the PRESET line
+                import re
+                content = re.sub(r'^PRESET=.*$', f'PRESET="{preset_name}"', content, flags=re.MULTILINE)
+                
+                with open(config_path, 'w') as f:
+                    f.write(content)
+                return True
+        except Exception as e:
+            console.print(f"[error]❌ Error setting preset: {e}[/error]")
+        return False
+
+    def show_documentation(self):
+        """Show documentation and README"""
+        console.clear()
+        
+        try:
+            readme_path = Path("README.md")
+            if readme_path.exists():
+                with open(readme_path, 'r') as f:
+                    content = f.read()
+                
+                # Display README content
+                console.print(Panel.fit(
+                    "[bold cyan]📖 Documentation[/bold cyan]",
+                    border_style="cyan"
+                ))
+                
+                # Show first part of README
+                lines = content.split('\n')[:30]  # First 30 lines
+                readme_text = '\n'.join(lines)
+                
+                console.print(Panel(readme_text, title="[cyan]README.md[/cyan]"))
+                
+            changelog_path = Path("docs/CHANGELOG.md")
+            if changelog_path.exists():
+                with open(changelog_path, 'r') as f:
+                    content = f.read()
+                
+                lines = content.split('\n')[:20]  # First 20 lines
+                changelog_text = '\n'.join(lines)
+                
+                console.print(Panel(changelog_text, title="[cyan]CHANGELOG.md[/cyan]"))
+                
+        except Exception as e:
+            console.print(f"[error]❌ Error reading documentation: {e}[/error]")
+
+    def configuration_presets_menu(self):
+        """Configuration presets management menu"""
+        console.clear()
+        
+        current_preset = self.get_current_preset()
+        
+        # Header
+        console.print(Panel.fit(
+            "[bold cyan]⚙️ Configuration Presets[/bold cyan]\n"
+            f"[dim]Current preset: {current_preset}[/dim]",
+            border_style="cyan"
+        ))
+        
+        # Preset descriptions
+        presets = {
+            "working": {
+                "name": "🖥️  Working",
+                "desc": "Optimized for development and office work",
+                "details": [
+                    "• Performance CPU governor",
+                    "• Moderate memory settings", 
+                    "• Development tools included",
+                    "• Desktop animations disabled"
+                ]
+            },
+            "gaming": {
+                "name": "🎮 Gaming", 
+                "desc": "Optimized for maximum gaming performance",
+                "details": [
+                    "• Performance CPU governor",
+                    "• Aggressive memory settings",
+                    "• Gaming tools included", 
+                    "• Minimal background services"
+                ]
+            },
+            "server": {
+                "name": "🖥️  Server",
+                "desc": "Optimized for server/headless environments",
+                "details": [
+                    "• Balanced CPU for server workloads",
+                    "• Large network buffers",
+                    "• Server tools included",
+                    "• Desktop services disabled"
+                ]
+            },
+            "conservative": {
+                "name": "🛡️  Conservative",
+                "desc": "Minimal, safe optimizations",
+                "details": [
+                    "• Safe CPU settings",
+                    "• Minimal system changes",
+                    "• Essential tools only",
+                    "• Maximum compatibility"
+                ]
+            },
+            "custom": {
+                "name": "⚙️  Custom",
+                "desc": "Manual configuration of all settings",
+                "details": [
+                    "• Configure each option manually",
+                    "• Full control over optimizations",
+                    "• Advanced users only"
+                ]
+            }
+        }
+        
+        console.print("\n[bold cyan]📋 Available Presets:[/bold cyan]\n")
+        
+        for i, (preset_key, preset_info) in enumerate(presets.items(), 1):
+            status = " [bold green](Current)[/bold green]" if preset_key == current_preset else ""
+            console.print(f"[bold cyan]{i}.[/bold cyan] {preset_info['name']}{status}")
+            console.print(f"   [dim]{preset_info['desc']}[/dim]")
+            for detail in preset_info['details']:
+                console.print(f"   [dim]{detail}[/dim]")
+            console.print()
+        
+        console.print("[bold cyan]0.[/bold cyan] [bold]Return to main menu[/bold]")
+        
+        choice = Prompt.ask("\n[bold cyan]Select preset[/bold cyan]", default="0")
+        
+        preset_list = list(presets.keys())
+        
+        if choice == "0":
+            return
+        
+        try:
+            preset_index = int(choice) - 1
+            if 0 <= preset_index < len(preset_list):
+                selected_preset = preset_list[preset_index]
+                
+                if selected_preset == current_preset:
+                    console.print(f"[info]ℹ️ Preset '{selected_preset}' is already selected[/info]")
+                    return
+                
+                if Confirm.ask(f"[warning]Apply '{selected_preset}' preset?[/warning]"):
+                    if self.set_preset(selected_preset):
+                        console.print(f"[success]✅ Preset changed to '{selected_preset}'[/success]")
+                        console.print("[info]ℹ️ Restart the application for changes to take effect[/info]")
+                    else:
+                        console.print("[error]❌ Failed to change preset[/error]")
+            else:
+                console.print("[error]❌ Invalid preset selection[/error]")
+        except ValueError:
+            console.print("[error]❌ Invalid input[/error]")
 
 def main():
     """Main application entry point"""
@@ -811,5 +1283,5 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         logger.error(f"Fatal error: {e}")
-        console.print(f"[error]❌ Fatal error: {e}[/error]")
+        console.print("❌ Fatal error:", str(e))
         sys.exit(1) 
