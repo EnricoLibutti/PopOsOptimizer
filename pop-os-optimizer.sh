@@ -120,7 +120,7 @@ show_statistics() {
     echo -e "${BLUE}🔥 CPU PERFORMANCE:${NC}"
     echo -e "   Model: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d':' -f2 | sed 's/^ *//')"
     echo -e "   Cores: $(nproc)"
-    echo -e "   Current Freq: $(cat /proc/cpuinfo | grep \"cpu MHz\" | head -1 | awk '{print $4}') MHz"
+    echo -e "   Current Freq: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null | awk '{print $1/1000}' || echo 'N/A') MHz"
     echo -e "   Max Freq: $(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null | awk '{print $1/1000}' || echo 'N/A') MHz"
     echo -e "   Boost: $(cat /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || echo 'N/A')"
     echo -e "   Governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo 'N/A')"

@@ -29,7 +29,8 @@ log_warning() {
 
 create_backup() {
     local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_path="$SCRIPT_DIR/$BACKUP_DIR/optimization_backup_$timestamp"
+    local project_root_dir="$(dirname "$(dirname "${BASH_SOURCE[0]}")")"
+    local backup_path="$project_root_dir/$BACKUP_DIR/optimization_backup_$timestamp"
 
     log_info "Creating backup directory: $backup_path..."
     mkdir -p "$backup_path"

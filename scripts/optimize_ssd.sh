@@ -59,7 +59,7 @@ set_nvme_scheduler() {
     local rules_file="/etc/udev/rules.d/60-nvme-scheduler.rules"
     local rule_content="ACTION==\"add|change\", KERNEL==\"nvme[0-9]*\", ATTR{queue/scheduler}=\"$NVME_IO_SCHEDULER\""
 
-    log_info "Setting NVMe I/O scheduler to '$NVME_IO_SCHEDULER'...
+    log_info "Setting NVMe I/O scheduler to '$NVME_IO_SCHEDULER'..."
     echo "$rule_content" | sudo tee "$rules_file" > /dev/null
     sudo udevadm control --reload-rules && sudo udevadm trigger
     log_success "NVMe I/O scheduler set to '$NVME_IO_SCHEDULER'."

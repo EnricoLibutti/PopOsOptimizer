@@ -21,7 +21,14 @@
 
 # The directory where backups will be stored.
 # Default: "../backups" (relative to the main script)
-BACKUP_DIR="../backups"
+BACKUP_DIR="backups"
+
+# Enable hardware validation before applying optimizations
+# This will check if the hardware supports the requested optimizations
+ENABLE_HARDWARE_VALIDATION=true
+
+# Skip optimizations that fail validation instead of aborting
+SKIP_FAILED_VALIDATIONS=true
 
 
 # --- 🔥 CPU Optimization (optimize_cpu.sh) ---

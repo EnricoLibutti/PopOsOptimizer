@@ -1,8 +1,8 @@
-# Pop-OS Optimizer - Development Edition
+# Pop-OS Optimizer - Professional Edition
 
 ## Overview
 
-This is a comprehensive optimization suite designed to enhance the performance and responsiveness of Pop!_OS, particularly for development workstations. It provides a modular and customizable approach to system tuning, allowing users to select specific optimizations or apply a complete set of recommended settings.
+This is a comprehensive optimization suite designed to enhance the performance and responsiveness of Pop!_OS, particularly for development workstations. It provides both a traditional bash-based interface and a modern Python dashboard with professional UI/UX, allowing users to select specific optimizations or apply a complete set of recommended settings.
 
 ## Features
 
@@ -18,25 +18,39 @@ This is a comprehensive optimization suite designed to enhance the performance a
 
 ## Getting Started
 
+### Option 1: Modern Python Dashboard (Recommended)
+
 1.  **Navigate to the project directory:**
 
     ```bash
     cd ~/Desktop/PopOsOptimizer
     ```
 
-2.  **Make the main script executable:**
+2.  **Install Python dependencies:**
+
+    ```bash
+    pip3 install -r requirements.txt --user
+    ```
+
+3.  **Run the modern dashboard:**
+
+    ```bash
+    python3 pop_dashboard.py
+    ```
+
+### Option 2: Traditional Bash Interface
+
+1.  **Make the main script executable:**
 
     ```bash
     chmod +x ./pop-os-optimizer.sh
     ```
 
-3.  **Run the main optimizer script:**
+2.  **Run the bash optimizer:**
 
     ```bash
     ./pop-os-optimizer.sh
     ```
-
-    Alternatively, you can double-click `pop-os-optimizer.sh` in your file manager and choose "Run in Terminal."
 
 ## Customization
 
@@ -52,14 +66,18 @@ All optimization settings are managed through the `scripts/config.sh` file. Befo
 
 ```
 PopOsOptimizer/
-├── pop-os-optimizer.sh       # Main script (run this!)
-├── optimizer.log             # Log of operations (automatically created)
+├── pop_dashboard.py          # Modern Python dashboard (recommended!)
+├── pop-os-optimizer.sh       # Traditional bash interface
+├── requirements.txt          # Python dependencies
 ├── README.md                 # This documentation file
-├── backups/                  # Automatic backups are stored here
+├── .gitignore               # Git ignore file
+├── optimizer.log             # Log of operations (automatically created)
+├── backups/                  # Automatic backups are stored here (ignored by git)
 ├── docs/
 │   └── CHANGELOG.md          # List of changes and versions
 └── scripts/
     ├── config.sh             # Customizable settings for all optimizations
+    ├── hardware_validator.sh # Hardware compatibility validation
     ├── backup_safety.sh      # Creates system backups
     ├── optimize_cpu.sh       # CPU optimization script
     ├── optimize_memory.sh    # Memory optimization script
